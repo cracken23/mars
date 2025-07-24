@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Attendance Records</title>
+    <style>
+        body { font-family: Arial, sans-serif; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+    </style>
+    <script>
+        function fetchRecords() {
+            fetch('/get_records')
+                .then(response => response.json())
+                .then(data => {
+                    const tbody = document.querySelector('tbody');
+                    tbody.innerHTML = ''; // Clear existing rows
+                    data.forEach(record => {
+                        const row = `<tr>
+                                        <td>${record[0]}</td>
+                                        <td>${record[1]}</td>
+                                     </tr>`;
+                        tbody.insertAdjacentHTML('beforeend', row);
+                    });
+                });
+        }
+
+        setInterval(fetchRecords, 5000); // Fetch records every 5 seconds
+    </script>
+</head>
+<body>
+    <h1>Attendance Records</h1>
+    <table>
+        <thead>
+            <tr>
+                <th>Student Name</th>
+                <th>Timestamp</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for record in records %}
+            <tr>
+                <td>{{ record[0] }}</td>
+                <td>{{ record[1] }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>
