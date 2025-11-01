@@ -1,10 +1,10 @@
-# pose_test.py
+
 import cv2
 from core.pose_estimator import PoseEstimator
 from core.pose_loader import load_reference_pose
 from core.pose_comparator import PoseComparator
 
-# Initialize classes
+
 pose_estimator = PoseEstimator()
 reference_landmarks = load_reference_pose("reference_pose.json")
 comparator = PoseComparator()
