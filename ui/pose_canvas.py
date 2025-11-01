@@ -163,25 +163,64 @@ class PoseCanvas(QWidget):
             self.level_combo.addItem(lv.get('name', f"Level {lv.get('id', '?')}"))
         if self.levels:
             self.current_level_index = 0
+            # set combo index which will trigger on_level_change
+            self.level_combo.setCurrentIndex(0)
+            # ensure current_level is in sync
             self.current_level = self.levels[0]
 
     def prev_level(self):
         if not self.levels:
             return
-        self.current_level_index = max(0, self.current_level_index - 1)
+        self.current_level_index = (self.current_level_index - 1) % len(self.levels)
         self.level_combo.setCurrentIndex(self.current_level_index)
+        self._apply_level_change()
 
     def next_level(self):
         if not self.levels:
             return
-        self.current_level_index = min(len(self.levels) - 1, self.current_level_index + 1)
+        self.current_level_index = (self.current_level_index + 1) % len(self.levels)
         self.level_combo.setCurrentIndex(self.current_level_index)
+        self._apply_level_change()
 
     def on_level_change(self, idx):
+        # called when user selects from combo
         if idx < 0 or idx >= len(self.levels):
             return
         self.current_level_index = idx
         self.current_level = self.levels[idx]
+        self._apply_level_change()
+
+    def _apply_level_change(self):
+        """
+        Internal helper: reset smoothing, optionally force one immediate update_frame,
+        and print debug info about the chosen level.
+        """
+        # reset smoothing so old scores don't carry over
+        try:
+            self.score_history.clear()
+        except Exception:
+            self.score_history = deque(maxlen=5)
+
+        # update current_level from index (safe)
+        if self.levels and 0 <= self.current_level_index < len(self.levels):
+            self.current_level = self.levels[self.current_level_index]
+
+        # debug print
+        ref = self.current_level.get('reference_pose') if self.current_level else None
+        try:
+            ref_len = len(ref) if isinstance(ref, list) else 0
+        except Exception:
+            ref_len = 0
+
+        print(f"Switched to level {self.current_level_index}:",
+              self.current_level.get('name') if self.current_level else None,
+              "landmarks:", ref_len)
+
+        # force immediate one-frame update so user sees new overlay right away
+        try:
+            self.update_frame()
+        except Exception:
+            pass
 
     def draw_reference_overlay(self, frame, ref_landmarks, alpha=0.5):
         """
@@ -193,7 +232,7 @@ class PoseCanvas(QWidget):
         pts = []
         for i, lm in enumerate(ref_landmarks):
             # safe check for x,y
-            if 'x' not in lm or 'y' not in lm:
+            if not isinstance(lm, dict) or 'x' not in lm or 'y' not in lm:
                 pts.append((0, 0))
                 continue
             x = int(lm['x'] * w)
