@@ -1,6 +1,6 @@
 # karate_trainer/ui/pose_canvas.py
 import json
-import cv2
+import cv2 
 from collections import deque
 from PySide6.QtWidgets import QWidget, QLabel, QVBoxLayout, QHBoxLayout, QPushButton, QComboBox
 from PySide6.QtCore import QTimer, Qt
@@ -123,9 +123,10 @@ class PoseCanvas(QWidget):
 
         # Pose estimator
         self.pose_estimator = PoseEstimator()
-        self.cap = cv2.VideoCapture(0)
-        if not self.cap.isOpened():
-            print("Warning: Webcam not opened")
+        
+        # Try to open webcam, with fallback options
+        self.cap = None
+        self._try_open_camera()
 
         # timer loop for frame updates
         self.timer = QTimer()
@@ -141,18 +142,51 @@ class PoseCanvas(QWidget):
         # smoothing history for score
         self.score_history = deque(maxlen=5)
 
+    def _try_open_camera(self):
+        """Try to open webcam with multiple backends and indices."""
+        import os
+        
+        # Check for video file override (for testing without webcam)
+        video_file = os.environ.get("KARATE_VIDEO_FILE")
+        if video_file and os.path.exists(video_file):
+            self.cap = cv2.VideoCapture(video_file)
+            if self.cap.isOpened():
+                print(f"Using video file: {video_file}")
+                return
+        
+        # Try different camera indices and backends
+        backends = [
+            (cv2.CAP_V4L2, "V4L2"),
+            (cv2.CAP_ANY, "ANY"),
+        ]
+        
+        for idx in range(3):  # Try indices 0, 1, 2
+            for backend, name in backends:
+                self.cap = cv2.VideoCapture(idx, backend)
+                if self.cap.isOpened():
+                    print(f"Opened camera {idx} with {name} backend")
+                    return
+                self.cap.release()
+        
+        # No camera found
+        print("Warning: No webcam found. Set KARATE_VIDEO_FILE env var to use a video file.")
+        self.cap = None
+
     def load_levels(self):
         import os
-        base = os.path.dirname(os.path.dirname(__file__))  # karate_trainer/ui -> karate_trainer
+        # Get project root (parent of ui/)
+        base = os.path.dirname(os.path.dirname(__file__))
         levels_path = os.path.join(base, "data", "levels.json")
         try:
             with open(levels_path, 'r') as f:
                 self.levels = json.load(f)
         except Exception as e:
-            print("Could not load levels.json:", e)
+            print(f"Could not load levels.json from {levels_path}:", e)
             # fallback to single existing reference if present
             try:
-                ref = json.load(open(os.path.join(base, "reference_pose.json")))
+                ref_path = os.path.join(base, "reference_pose.json")
+                with open(ref_path, 'r') as f:
+                    ref = json.load(f)
                 self.levels = [{"id": 1, "name": "Reference", "type": "ref", "threshold": 60, "reference_pose": ref}]
             except Exception:
                 self.levels = []
@@ -249,8 +283,17 @@ class PoseCanvas(QWidget):
         return frame
 
     def update_frame(self):
+        # Handle case where no camera is available
+        if self.cap is None or not self.cap.isOpened():
+            self.score_label.setText("Score: No camera")
+            self.feedback_label.setText("Connect a webcam or set KARATE_VIDEO_FILE")
+            return
+            
         ret, frame = self.cap.read()
         if not ret:
+            # For video files, loop back to start
+            if self.cap.get(cv2.CAP_PROP_POS_FRAMES) > 0:
+                self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
             return
 
         # get annotated frame and raw landmarks from your PoseEstimator

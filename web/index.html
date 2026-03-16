@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MARS</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    background: #1a1a2e;
+    color: #e0e0e0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  header {
+    width: 100%;
+    padding: 16px 24px;
+    background: #16213e;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    border-bottom: 2px solid #0f3460;
+  }
+
+  header h1 {
+    font-size: 1.4rem;
+    color: #e94560;
+    letter-spacing: 1px;
+  }
+
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  select, button {
+    padding: 8px 16px;
+    border: 1px solid #0f3460;
+    border-radius: 6px;
+    background: #1a1a2e;
+    color: #e0e0e0;
+    font-size: 0.9rem;
+    cursor: pointer;
+  }
+
+  select:hover, button:hover { border-color: #e94560; }
+  button { background: #0f3460; }
+  button:hover { background: #e94560; color: #fff; }
+
+  .main {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 20px;
+    padding: 20px;
+    max-width: 1200px;
+    width: 100%;
+  }
+
+  .video-container {
+    position: relative;
+    background: #0a0a1a;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 2px solid #0f3460;
+  }
+
+  canvas {
+    display: block;
+    max-width: 100%;
+  }
+
+  .sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-width: 280px;
+    max-width: 360px;
+    flex: 1;
+  }
+
+  .card {
+    background: #16213e;
+    border-radius: 10px;
+    padding: 20px;
+    border: 1px solid #0f3460;
+  }
+
+  .card h2 {
+    font-size: 1rem;
+    color: #e94560;
+    margin-bottom: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .score-value {
+    font-size: 3rem;
+    font-weight: 700;
+    text-align: center;
+    margin: 8px 0;
+    transition: color 0.3s;
+  }
+
+  .progress-bar {
+    width: 100%;
+    height: 10px;
+    background: #0a0a1a;
+    border-radius: 5px;
+    overflow: hidden;
+    margin: 8px 0;
+  }
+
+  .progress-fill {
+    height: 100%;
+    border-radius: 5px;
+    transition: width 0.3s, background 0.3s;
+    width: 0%;
+    background: #e94560;
+  }
+
+  .status-text {
+    text-align: center;
+    font-size: 1.1rem;
+    margin-top: 8px;
+    min-height: 1.4em;
+  }
+
+  .feedback-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .feedback-list li {
+    padding: 8px 12px;
+    background: #0a0a1a;
+    border-radius: 6px;
+    border-left: 3px solid #e94560;
+    font-size: 0.9rem;
+  }
+
+  .feedback-list li.ok {
+    border-left-color: #4caf50;
+    color: #aaa;
+  }
+
+  .info-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.85rem;
+    color: #888;
+    margin-top: 4px;
+  }
+
+  .camera-msg {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    color: #888;
+    text-align: center;
+    padding: 20px;
+  }
+
+  .level-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+  .level-badge.kick { background: #ff6f00; color: #fff; }
+  .level-badge.punch { background: #1565c0; color: #fff; }
+  .level-badge.defense { background: #2e7d32; color: #fff; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>MARS</h1>
+  <div class="controls">
+    <button id="prevBtn">&#9664; Prev</button>
+    <select id="levelSelect"></select>
+    <button id="nextBtn">Next &#9654;</button>
+  </div>
+</header>
+
+<div class="main">
+  <div class="video-container">
+    <canvas id="canvas" width="640" height="480"></canvas>
+    <div class="camera-msg" id="cameraMsg">Initializing camera...</div>
+  </div>
+
+  <div class="sidebar">
+    <div class="card">
+      <h2>Score</h2>
+      <div class="score-value" id="scoreValue">--</div>
+      <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+      <div class="status-text" id="statusText">Waiting for pose...</div>
+      <div class="info-row">
+        <span id="levelName">--</span>
+        <span id="levelBadge"></span>
+      </div>
+      <div class="info-row">
+        <span>Threshold</span>
+        <span id="thresholdText">--</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Feedback</h2>
+      <ul class="feedback-list" id="feedbackList">
+        <li class="ok">Select a level and start posing</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- MediaPipe Pose via CDN -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/pose.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3.1675466862/camera_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3.1675466124/drawing_utils.js" crossorigin="anonymous"></script>
+
+<script>
+// ---- State ----
+let levels = [];
+let currentLevel = null;
+let referencePose = null;
+let scorePending = false;
+let lastLandmarks = null;
+
+// ---- DOM refs ----
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+const cameraMsg = document.getElementById("cameraMsg");
+const levelSelect = document.getElementById("levelSelect");
+const prevBtn = document.getElementById("prevBtn");
+const nextBtn = document.getElementById("nextBtn");
+const scoreValue = document.getElementById("scoreValue");
+const progressFill = document.getElementById("progressFill");
+const statusText = document.getElementById("statusText");
+const feedbackList = document.getElementById("feedbackList");
+const levelName = document.getElementById("levelName");
+const levelBadge = document.getElementById("levelBadge");
+const thresholdText = document.getElementById("thresholdText");
+
+// Skeleton connections (matches desktop app)
+const POSE_CONNECTIONS = [
+  [11,13],[13,15],[12,14],[14,16],
+  [11,12],[23,24],[11,23],[12,24],
+  [23,25],[25,27],[24,26],[26,28],
+  [27,31],[28,32]
+];
+
+// ---- API helpers ----
+async function fetchLevels() {
+  const res = await fetch("/api/levels");
+  levels = await res.json();
+  levelSelect.innerHTML = "";
+  levels.forEach(lv => {
+    const opt = document.createElement("option");
+    opt.value = lv.id;
+    opt.textContent = lv.name;
+    levelSelect.appendChild(opt);
+  });
+  if (levels.length > 0) selectLevel(levels[0].id);
+}
+
+async function selectLevel(id) {
+  const res = await fetch(`/api/levels/${id}`);
+  currentLevel = await res.json();
+  referencePose = currentLevel.reference_pose || null;
+  levelName.textContent = currentLevel.name;
+  thresholdText.textContent = currentLevel.threshold + "%";
+  levelBadge.className = "level-badge " + (currentLevel.type || "");
+  levelBadge.textContent = currentLevel.type || "";
+  scoreValue.textContent = "--";
+  progressFill.style.width = "0%";
+  statusText.textContent = "Waiting for pose...";
+  feedbackList.innerHTML = '<li class="ok">Assume the pose shown in cyan</li>';
+}
+
+async function sendScore(landmarks) {
+  if (!currentLevel || scorePending) return;
+  scorePending = true;
+  try {
+    const res = await fetch("/api/score", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({
+        level_id: currentLevel.id,
+        landmarks: landmarks.map(lm => ({x: lm.x, y: lm.y}))
+      })
+    });
+    const data = await res.json();
+    updateScoreUI(data);
+  } catch(e) {
+    console.error("Score error:", e);
+  } finally {
+    scorePending = false;
+  }
+}
+
+function updateScoreUI(data) {
+  const sc = data.score;
+  const threshold = data.threshold || 60;
+
+  scoreValue.textContent = sc.toFixed(1) + "%";
+  progressFill.style.width = Math.min(sc, 100) + "%";
+
+  if (sc >= threshold) {
+    scoreValue.style.color = "#4caf50";
+    progressFill.style.background = "#4caf50";
+  } else if (sc >= threshold * 0.8) {
+    scoreValue.style.color = "#ffb300";
+    progressFill.style.background = "#ffb300";
+  } else {
+    scoreValue.style.color = "#e94560";
+    progressFill.style.background = "#e94560";
+  }
+
+  statusText.textContent = data.status || "";
+
+  feedbackList.innerHTML = "";
+  if (data.feedback && data.feedback.length > 0) {
+    data.feedback.forEach(msg => {
+      const li = document.createElement("li");
+      li.textContent = msg;
+      feedbackList.appendChild(li);
+    });
+  } else if (sc >= threshold) {
+    feedbackList.innerHTML = '<li class="ok">Great form! Hold the pose.</li>';
+  } else {
+    feedbackList.innerHTML = '<li class="ok">Keep adjusting...</li>';
+  }
+}
+
+// ---- Drawing ----
+function drawSkeleton(landmarks, color, dotRadius, lineWidth) {
+  if (!landmarks || landmarks.length === 0) return;
+  const w = canvas.width;
+  const h = canvas.height;
+
+  ctx.strokeStyle = color;
+  ctx.lineWidth = lineWidth;
+  POSE_CONNECTIONS.forEach(([a, b]) => {
+    if (a < landmarks.length && b < landmarks.length) {
+      const la = landmarks[a];
+      const lb = landmarks[b];
+      ctx.beginPath();
+      ctx.moveTo(la.x * w, la.y * h);
+      ctx.lineTo(lb.x * w, lb.y * h);
+      ctx.stroke();
+    }
+  });
+
+  ctx.fillStyle = color;
+  landmarks.forEach(lm => {
+    if (lm.visibility !== undefined && lm.visibility < 0.5) return;
+    ctx.beginPath();
+    ctx.arc(lm.x * w, lm.y * h, dotRadius, 0, 2 * Math.PI);
+    ctx.fill();
+  });
+}
+
+function drawReferenceOverlay() {
+  if (!referencePose) return;
+  ctx.globalAlpha = 0.4;
+  drawSkeleton(referencePose, "#00e5ff", 4, 2);
+  ctx.globalAlpha = 1.0;
+}
+
+// ---- MediaPipe Pose Setup ----
+const pose = new Pose({
+  locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/${file}`
+});
+
+pose.setOptions({
+  modelComplexity: 1,
+  smoothLandmarks: true,
+  minDetectionConfidence: 0.5,
+  minTrackingConfidence: 0.5,
+});
+
+let scoreInterval = null;
+
+pose.onResults((results) => {
+  // Draw camera frame
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
+
+  // Draw reference pose overlay
+  drawReferenceOverlay();
+
+  // Draw user skeleton
+  if (results.poseLandmarks) {
+    drawSkeleton(results.poseLandmarks, "#00ff88", 3, 2);
+    lastLandmarks = results.poseLandmarks;
+  } else {
+    lastLandmarks = null;
+  }
+});
+
+// Send score every 500ms if we have landmarks
+scoreInterval = setInterval(() => {
+  if (lastLandmarks && currentLevel) {
+    sendScore(lastLandmarks);
+  }
+}, 500);
+
+// ---- Camera ----
+const videoEl = document.createElement("video");
+
+const camera = new Camera(videoEl, {
+  onFrame: async () => {
+    await pose.send({image: videoEl});
+  },
+  width: 640,
+  height: 480,
+});
+
+camera.start().then(() => {
+  cameraMsg.style.display = "none";
+}).catch(err => {
+  cameraMsg.textContent = "Camera access denied or unavailable. Please allow camera access and reload.";
+  console.error("Camera error:", err);
+});
+
+// ---- Controls ----
+levelSelect.addEventListener("change", () => {
+  selectLevel(parseInt(levelSelect.value));
+});
+
+prevBtn.addEventListener("click", () => {
+  let idx = levelSelect.selectedIndex - 1;
+  if (idx < 0) idx = levels.length - 1;
+  levelSelect.selectedIndex = idx;
+  selectLevel(levels[idx].id);
+});
+
+nextBtn.addEventListener("click", () => {
+  let idx = levelSelect.selectedIndex + 1;
+  if (idx >= levels.length) idx = 0;
+  levelSelect.selectedIndex = idx;
+  selectLevel(levels[idx].id);
+});
+
+// ---- Init ----
+fetchLevels();
+</script>
+</body>
+</html>
