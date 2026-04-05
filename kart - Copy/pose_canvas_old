@@ -1,0 +1,258 @@
+import json
+import os
+import cv2
+import numpy as np
+from collections import deque
+
+from PySide6.QtWidgets import QWidget, QLabel, QVBoxLayout, QHBoxLayout, QPushButton, QComboBox
+from PySide6.QtCore import QTimer, Qt
+from PySide6.QtGui import QImage, QPixmap, QFont
+
+from core.pose_estimator import PoseEstimator
+from core.pose_matcher import similarity_score
+
+
+POSE_CONNECTIONS = [
+    (11, 13), (13, 15), (12, 14), (14, 16),
+    (11, 12), (23, 24), (11, 23), (12, 24),
+    (23, 25), (25, 27), (24, 26), (26, 28),
+    (27, 31), (28, 32)
+]
+
+
+def convert_landmarks(mp_landmarks):
+    if mp_landmarks is None:
+        return []
+
+    if hasattr(mp_landmarks, "landmark"):
+        mp_landmarks = mp_landmarks.landmark
+
+    result = []
+    for lm in mp_landmarks:
+        if hasattr(lm, "x"):
+            result.append({"x": float(lm.x), "y": float(lm.y)})
+        elif isinstance(lm, dict):
+            result.append({"x": float(lm["x"]), "y": float(lm["y"])})
+    return result
+
+
+class PoseCanvas(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+        # ================= UI =================
+        self.cam_label = QLabel()
+        self.cam_label.setAlignment(Qt.AlignCenter)
+
+        self.animation_label = QLabel()
+        self.animation_label.setAlignment(Qt.AlignCenter)
+        self.animation_label.setMinimumWidth(300)
+        self.animation_label.setStyleSheet("background-color: white; border: 1px solid black;")
+
+        self.score_label = QLabel("Score: -")
+        self.score_label.setFont(QFont("Arial", 18))
+
+        self.feedback_label = QLabel("")
+        self.feedback_label.setFont(QFont("Arial", 14))
+
+        controls = QHBoxLayout()
+        self.level_combo = QComboBox()
+        self.prev_btn = QPushButton("Prev")
+        self.next_btn = QPushButton("Next")
+
+        controls.addWidget(self.prev_btn)
+        controls.addWidget(self.level_combo)
+        controls.addWidget(self.next_btn)
+
+        layout = QVBoxLayout()
+        layout.addLayout(controls)
+
+        # 🔥 SIDE BY SIDE VIEW
+        h_layout = QHBoxLayout()
+        h_layout.addWidget(self.cam_label, 2)
+        h_layout.addWidget(self.animation_label, 1)
+
+        layout.addLayout(h_layout)
+        layout.addWidget(self.score_label)
+        layout.addWidget(self.feedback_label)
+
+        self.setLayout(layout)
+
+        # ================= BUTTONS =================
+        self.prev_btn.clicked.connect(self.prev_level)
+        self.next_btn.clicked.connect(self.next_level)
+        self.level_combo.currentIndexChanged.connect(self.on_level_change)
+
+        # ================= CAMERA =================
+        self.pose_estimator = PoseEstimator()
+        self.cap = cv2.VideoCapture(0)
+
+        # ================= TIMER =================
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.update_frame)
+        self.timer.start(30)
+
+        # ================= DATA =================
+        self.score_history = deque(maxlen=5)
+
+        self.levels = []
+        self.current_level_index = 0
+        self.current_level = None
+
+        # animation
+        self.animation_frames = []
+        self.current_anim_index = 0
+        self.anim_timer = 0
+
+        self.load_levels()
+
+    # ================= LOAD =================
+    def load_levels(self):
+        base = os.path.dirname(os.path.dirname(__file__))
+        levels_path = os.path.join(base, "data", "levels.json")
+
+        if not os.path.exists(levels_path):
+            print("❌ levels.json NOT FOUND")
+            return
+
+        with open(levels_path, "r") as f:
+            self.levels = json.load(f)
+
+        print("✅ Loaded levels:", len(self.levels))
+
+        self.level_combo.clear()
+        for level in self.levels:
+            self.level_combo.addItem(level.get("name", "Unnamed"))
+
+        if self.levels:
+            self.current_level_index = 0
+            self.current_level = self.levels[0]
+            self.level_combo.setCurrentIndex(0)
+
+            self.load_animation()
+
+    def load_animation(self):
+        if not self.current_level:
+            return
+
+        self.animation_frames = self.current_level.get("animation", [])
+        self.current_anim_index = 0
+        self.anim_timer = 0
+
+        print("Animation frames:", len(self.animation_frames))
+
+    # ================= NAV =================
+    def prev_level(self):
+        if not self.levels:
+            return
+        self.current_level_index = (self.current_level_index - 1) % len(self.levels)
+        self.level_combo.setCurrentIndex(self.current_level_index)
+
+    def next_level(self):
+        if not self.levels:
+            return
+        self.current_level_index = (self.current_level_index + 1) % len(self.levels)
+        self.level_combo.setCurrentIndex(self.current_level_index)
+
+    def on_level_change(self, idx):
+        if idx < 0 or idx >= len(self.levels):
+            return
+
+        self.current_level_index = idx
+        self.current_level = self.levels[idx]
+        self.score_history.clear()
+
+        print("Switched to:", self.current_level.get("name"))
+
+        self.load_animation()
+
+    # ================= DRAW =================
+    def draw_skeleton(self, frame, landmarks):
+        h, w = frame.shape[:2]
+
+        pts = []
+        for lm in landmarks:
+            x = int(lm["x"] * w)
+            y = int(lm["y"] * h)
+            pts.append((x, y))
+            cv2.circle(frame, (x, y), 4, (0, 255, 0), -1)
+
+        for a, b in POSE_CONNECTIONS:
+            if a < len(pts) and b < len(pts):
+                cv2.line(frame, pts[a], pts[b], (0, 255, 0), 2)
+
+        return frame
+
+    # ================= MAIN =================
+    def update_frame(self):
+        ret, frame = self.cap.read()
+        if not ret:
+            return
+
+        annotated, mp_landmarks = self.pose_estimator.process_frame(frame, draw=True)
+        user_landmarks = convert_landmarks(mp_landmarks)
+
+        if self.current_level and user_landmarks:
+            ref = self.current_level.get("reference_pose")
+
+            if ref:
+                score = similarity_score(user_landmarks, ref)
+
+                self.score_history.append(score)
+                avg_score = sum(self.score_history) / len(self.score_history)
+
+                self.score_label.setText(f"Score: {avg_score:.1f}%")
+
+                threshold = self.current_level.get("threshold", 60)
+
+                if avg_score >= threshold:
+                    self.feedback_label.setText("Good — matched!")
+                elif avg_score >= threshold * 0.8:
+                    self.feedback_label.setText("Close — adjust posture")
+                else:
+                    self.feedback_label.setText("Try again — align to reference")
+
+        # ================= SHOW CAMERA =================
+        rgb = cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB)
+        h, w, ch = rgb.shape
+        qt_image = QImage(rgb.data, w, h, ch * w, QImage.Format_RGB888)
+
+        self.cam_label.setPixmap(
+            QPixmap.fromImage(qt_image).scaled(
+                self.cam_label.width(),
+                self.cam_label.height(),
+                Qt.KeepAspectRatio
+            )
+        )
+
+        # ================= ANIMATION =================
+        if self.animation_frames:
+            self.anim_timer += 1
+
+            if self.anim_timer % 5 == 0:
+                self.current_anim_index = (self.current_anim_index + 1) % len(self.animation_frames)
+
+            pose = self.animation_frames[self.current_anim_index]
+
+            anim_frame = np.ones((300, 300, 3), dtype=np.uint8) * 255
+            anim_frame = self.draw_skeleton(anim_frame, pose)
+
+            rgb_anim = cv2.cvtColor(anim_frame, cv2.COLOR_BGR2RGB)
+            h, w, ch = rgb_anim.shape
+
+            qt_anim = QImage(rgb_anim.data, w, h, ch * w, QImage.Format_RGB888)
+
+            self.animation_label.setPixmap(
+                QPixmap.fromImage(qt_anim).scaled(
+                    self.animation_label.width(),
+                    self.animation_label.height(),
+                    Qt.KeepAspectRatio
+                )
+            )
+
+    def closeEvent(self, event):
+        self.timer.stop()
+        if self.cap:
+            self.cap.release()
+        self.pose_estimator.release()
+        super().closeEvent(event)

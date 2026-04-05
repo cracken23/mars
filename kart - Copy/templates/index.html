@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KarateTrainer — AI Pose Coach</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --red: #D85A30; --red-dark: #993C1D; --red-glow: rgba(216,90,48,0.18);
+    --gold: #EF9F27; --green: #1D9E75;
+    --ink: #0f0d0b; --ink2: #1a1714; --ink3: #242018;
+    --muted: #6b6258; --light: #e8e0d4; --lighter: #f5f0e8;
+  }
+  html { scroll-behavior: smooth; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--ink); color: var(--light); min-height: 100vh; overflow-x: hidden; }
+
+  /* NAV */
+  nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; display: flex; align-items: center; justify-content: space-between; padding: 1.25rem 3rem; background: rgba(15,13,11,0.88); backdrop-filter: blur(12px); border-bottom: 1px solid rgba(216,90,48,0.15); }
+  .logo { font-family: 'Bebas Neue', sans-serif; font-size: 1.6rem; letter-spacing: 0.08em; color: var(--lighter); }
+  .logo span { color: var(--red); }
+  .nav-links { display: flex; gap: 2.5rem; list-style: none; }
+  .nav-links a { color: var(--muted); text-decoration: none; font-size: 0.85rem; letter-spacing: 0.06em; text-transform: uppercase; transition: color 0.2s; }
+  .nav-links a:hover { color: var(--light); }
+  .nav-cta { background: var(--red); color: #fff; padding: 0.55rem 1.4rem; border-radius: 3px; font-size: 0.85rem; font-weight: 500; letter-spacing: 0.05em; text-decoration: none; text-transform: uppercase; transition: background 0.2s; }
+  .nav-cta:hover { background: var(--red-dark); }
+
+  /* HERO */
+  .hero { min-height: 100vh; display: grid; grid-template-columns: 1fr 1fr; align-items: center; padding: 7rem 3rem 4rem; gap: 4rem; position: relative; overflow: hidden; }
+  .hero::before { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse 60% 80% at 70% 50%, rgba(216,90,48,0.08) 0%, transparent 70%); pointer-events: none; }
+  .hero-eyebrow { font-size: 0.75rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--red); font-weight: 500; display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.25rem; }
+  .hero-eyebrow::before { content: ''; display: block; width: 28px; height: 1px; background: var(--red); }
+  .hero h1 { font-family: 'Bebas Neue', sans-serif; font-size: clamp(4rem, 7vw, 7.5rem); line-height: 0.92; letter-spacing: 0.02em; color: var(--lighter); margin-bottom: 1.5rem; }
+  .hero h1 em { color: var(--red); font-style: normal; }
+  .hero-desc { font-size: 1.05rem; line-height: 1.75; color: var(--muted); max-width: 480px; margin-bottom: 2.5rem; font-weight: 300; }
+  .hero-actions { display: flex; gap: 1rem; flex-wrap: wrap; }
+  .btn-primary { background: var(--red); color: #fff; padding: 0.85rem 2rem; border-radius: 3px; font-size: 0.9rem; font-weight: 500; letter-spacing: 0.06em; text-decoration: none; text-transform: uppercase; transition: background 0.2s, transform 0.15s; border: none; cursor: pointer; }
+  .btn-primary:hover { background: var(--red-dark); transform: translateY(-2px); }
+  .btn-ghost { background: transparent; color: var(--light); padding: 0.85rem 2rem; border-radius: 3px; font-size: 0.9rem; font-weight: 400; letter-spacing: 0.06em; text-decoration: none; text-transform: uppercase; border: 1px solid rgba(232,224,212,0.2); cursor: pointer; transition: border-color 0.2s; }
+  .btn-ghost:hover { border-color: rgba(232,224,212,0.5); }
+
+  .hero-visual { position: relative; display: flex; align-items: center; justify-content: center; }
+  .cam-frame { width: 100%; max-width: 520px; aspect-ratio: 4/3; background: var(--ink2); border-radius: 6px; border: 1px solid rgba(216,90,48,0.3); position: relative; overflow: hidden; }
+  .cam-grid { position: absolute; inset: 0; background-image: linear-gradient(rgba(216,90,48,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(216,90,48,0.06) 1px, transparent 1px); background-size: 40px 40px; }
+  .pose-svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .cam-overlay { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: space-between; padding: 1rem; }
+  .cam-top { display: flex; justify-content: space-between; align-items: flex-start; }
+  .cam-badge { background: rgba(15,13,11,0.75); border: 1px solid rgba(216,90,48,0.4); padding: 0.35rem 0.75rem; border-radius: 3px; font-size: 0.7rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--red); font-weight: 500; display: flex; align-items: center; gap: 0.5rem; }
+  .cam-badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--red); animation: blink 1.5s ease-in-out infinite; }
+  .level-tag { background: rgba(15,13,11,0.75); border: 1px solid rgba(232,224,212,0.12); padding: 0.35rem 0.75rem; border-radius: 3px; font-size: 0.7rem; letter-spacing: 0.08em; color: var(--muted); }
+  .score-bar-wrap { background: rgba(15,13,11,0.8); border: 1px solid rgba(232,224,212,0.08); padding: 0.75rem 1rem; border-radius: 4px; }
+  .score-label { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; }
+  .score-name { color: var(--muted); }
+  .score-val { color: var(--gold); font-weight: 500; font-size: 0.8rem; }
+  .score-track { height: 4px; background: rgba(255,255,255,0.08); border-radius: 2px; overflow: hidden; }
+  .score-fill { height: 100%; background: var(--gold); border-radius: 2px; width: 0; transition: width 0.4s cubic-bezier(0.22,1,0.36,1); }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+  @keyframes fadeup { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+
+  /* STATS */
+  .stats-strip { border-top: 1px solid rgba(255,255,255,0.05); border-bottom: 1px solid rgba(255,255,255,0.05); background: var(--ink2); display: flex; }
+  .stat { flex: 1; padding: 2rem 1.5rem; text-align: center; border-right: 1px solid rgba(255,255,255,0.05); }
+  .stat:last-child { border-right: none; }
+  .stat-num { font-family: 'Bebas Neue', sans-serif; font-size: 2.8rem; color: var(--gold); letter-spacing: 0.04em; line-height: 1; }
+  .stat-label { font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-top: 0.4rem; }
+
+  /* SECTIONS */
+  section { padding: 6rem 3rem; }
+  .section-eyebrow { font-size: 0.72rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--red); font-weight: 500; display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; }
+  .section-eyebrow::before { content: ''; display: block; width: 20px; height: 1px; background: var(--red); }
+  .section-title { font-family: 'Bebas Neue', sans-serif; font-size: clamp(2.5rem, 4vw, 4rem); line-height: 1; color: var(--lighter); margin-bottom: 1rem; letter-spacing: 0.02em; }
+
+  /* HOW */
+  .how { background: var(--ink2); }
+  .how-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 1px; margin-top: 4rem; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.05); border-radius: 6px; overflow: hidden; }
+  .how-step { background: var(--ink2); padding: 2.5rem 2rem; position: relative; }
+  .how-num { font-family: 'Bebas Neue', sans-serif; font-size: 5rem; line-height: 1; color: rgba(216,90,48,0.12); position: absolute; top: 1.25rem; right: 1.5rem; user-select: none; }
+  .how-icon { width: 44px; height: 44px; border-radius: 4px; background: var(--red-glow); border: 1px solid rgba(216,90,48,0.3); display: flex; align-items: center; justify-content: center; margin-bottom: 1.5rem; }
+  .how-icon svg { width: 22px; height: 22px; }
+  .how-step h3 { font-family: 'Bebas Neue', sans-serif; font-size: 1.5rem; letter-spacing: 0.04em; color: var(--lighter); margin-bottom: 0.75rem; }
+  .how-step p { font-size: 0.9rem; line-height: 1.7; color: var(--muted); font-weight: 300; }
+
+  /* LEVELS */
+  .levels { background: var(--ink); }
+  .levels-intro { max-width: 560px; margin-bottom: 4rem; }
+  .levels-intro p { font-size: 1rem; line-height: 1.75; color: var(--muted); font-weight: 300; }
+  .levels-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; }
+  .level-card { background: var(--ink2); border: 1px solid rgba(255,255,255,0.06); border-radius: 6px; padding: 1.75rem; cursor: pointer; transition: border-color 0.25s, transform 0.2s; position: relative; overflow: hidden; }
+  .level-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--red); transform: scaleY(0); transition: transform 0.3s cubic-bezier(0.22,1,0.36,1); transform-origin: bottom; }
+  .level-card:hover { border-color: rgba(216,90,48,0.3); transform: translateY(-3px); }
+  .level-card:hover::before { transform: scaleY(1); }
+  .level-id { font-family: 'Bebas Neue', sans-serif; font-size: 0.9rem; letter-spacing: 0.12em; color: var(--red); margin-bottom: 0.5rem; }
+  .level-name { font-family: 'Bebas Neue', sans-serif; font-size: 1.6rem; letter-spacing: 0.03em; color: var(--lighter); margin-bottom: 0.35rem; }
+  .level-type { display: inline-block; font-size: 0.65rem; letter-spacing: 0.12em; text-transform: uppercase; padding: 0.2rem 0.6rem; border-radius: 2px; margin-bottom: 0.5rem; }
+  .type-kick { background: rgba(216,90,48,0.15); color: var(--red); }
+  .type-punch { background: rgba(239,159,39,0.15); color: var(--gold); }
+  .type-defense { background: rgba(29,158,117,0.15); color: var(--green); }
+  .ref-badge { display: inline-block; font-size: 0.6rem; letter-spacing: 0.1em; text-transform: uppercase; padding: 0.15rem 0.5rem; border-radius: 2px; margin-left: 0.4rem; }
+  .ref-ready { background: rgba(29,158,117,0.15); color: var(--green); }
+  .ref-missing { background: rgba(107,98,88,0.2); color: var(--muted); }
+  .level-threshold { display: flex; align-items: center; gap: 0.75rem; margin-top: 1.25rem; }
+  .threshold-label { font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+  .threshold-bar { flex: 1; height: 3px; background: rgba(255,255,255,0.08); border-radius: 2px; overflow: hidden; }
+  .threshold-fill { height: 100%; border-radius: 2px; background: var(--gold); }
+  .threshold-val { font-family: 'Bebas Neue', sans-serif; font-size: 0.9rem; color: var(--gold); }
+
+  /* TRAINING */
+  .training { background: var(--ink3); }
+  .training-layout { display: grid; grid-template-columns: 1fr 380px; gap: 3rem; align-items: start; margin-top: 4rem; }
+
+  .conn-banner { display: flex; align-items: center; gap: 0.75rem; padding: 0.65rem 1rem; border-radius: 4px; margin-bottom: 1.25rem; font-size: 0.8rem; letter-spacing: 0.04em; border: 1px solid; transition: all 0.3s; }
+  .conn-banner.connecting { background: rgba(216,90,48,0.08); border-color: rgba(216,90,48,0.2); color: var(--muted); }
+  .conn-banner.connected   { background: rgba(29,158,117,0.08); border-color: rgba(29,158,117,0.3); color: var(--green); }
+  .conn-banner.disconnected{ background: rgba(107,98,88,0.1); border-color: rgba(107,98,88,0.2); color: var(--muted); }
+  .conn-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .connecting .conn-dot { background: var(--red); animation: blink 1.2s infinite; }
+  .connected .conn-dot   { background: var(--green); }
+  .disconnected .conn-dot{ background: var(--muted); }
+
+  /* Live feed + animation side by side */
+  .feed-row { display: grid; grid-template-columns: 1fr 200px; gap: 1rem; align-items: start; }
+  .webcam-area { background: var(--ink2); border: 1px solid rgba(216,90,48,0.2); border-radius: 6px; aspect-ratio: 4/3; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+  .webcam-placeholder { text-align: center; }
+  .webcam-placeholder .cam-icon { width: 64px; height: 64px; margin: 0 auto 1rem; border-radius: 50%; background: var(--red-glow); border: 1px solid rgba(216,90,48,0.3); display: flex; align-items: center; justify-content: center; }
+  .webcam-placeholder h3 { font-family: 'Bebas Neue', sans-serif; font-size: 1.4rem; letter-spacing: 0.04em; color: var(--lighter); margin-bottom: 0.5rem; }
+  .webcam-placeholder p { font-size: 0.85rem; color: var(--muted); max-width: 260px; margin: 0 auto; line-height: 1.6; }
+  #live-feed { display: none; width: 100%; height: 100%; object-fit: cover; }
+  .feed-overlay { display: none; position: absolute; bottom: 0; left: 0; right: 0; padding: 0.75rem 1rem; background: linear-gradient(transparent, rgba(10,8,6,0.92)); }
+  .feed-overlay.visible { display: block; }
+  .pass-flash { position: absolute; inset: 0; background: rgba(29,158,117,0.12); border: 2px solid var(--green); border-radius: 6px; opacity: 0; pointer-events: none; transition: opacity 0.3s; }
+  .pass-flash.show { opacity: 1; }
+  .cam-controls { position: absolute; bottom: 1rem; left: 1rem; right: 1rem; display: flex; justify-content: center; gap: 0.75rem; }
+  .cam-btn { background: rgba(15,13,11,0.9); border: 1px solid rgba(255,255,255,0.1); color: var(--light); padding: 0.6rem 1.25rem; border-radius: 4px; font-size: 0.8rem; letter-spacing: 0.06em; text-transform: uppercase; cursor: pointer; transition: border-color 0.2s, background 0.2s; }
+  .cam-btn:hover { border-color: rgba(216,90,48,0.4); background: rgba(216,90,48,0.1); }
+  .cam-btn.active-btn { background: var(--red); border-color: var(--red); color: #fff; }
+  .cam-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* Animation panel — reference skeleton */
+  .anim-panel { background: var(--ink2); border: 1px solid rgba(255,255,255,0.06); border-radius: 6px; display: flex; flex-direction: column; overflow: hidden; max-height: 340px; }
+  .anim-header { padding: 0.6rem 1rem; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); flex-shrink: 0; }
+  .anim-canvas-wrap { flex: 1; background: #f5f5f5; position: relative; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+  canvas#anim-canvas { display: block; width: 220px; height: 280px; }
+  .anim-footer { padding: 0.45rem 1rem; border-top: 1px solid rgba(255,255,255,0.05); font-size: 0.68rem; color: var(--muted); text-align: center; flex-shrink: 0; }
+
+  /* SIDEBAR */
+  .sidebar-card { background: var(--ink2); border: 1px solid rgba(255,255,255,0.06); border-radius: 6px; padding: 1.5rem; margin-bottom: 1.25rem; }
+  .sidebar-card h4 { font-family: 'Bebas Neue', sans-serif; font-size: 1.1rem; letter-spacing: 0.06em; color: var(--lighter); margin-bottom: 1rem; }
+  .pose-list { list-style: none; }
+  .pose-item { display: flex; align-items: center; gap: 0.75rem; padding: 0.6rem 0; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 0.85rem; color: var(--muted); cursor: pointer; transition: color 0.2s; }
+  .pose-item:last-child { border-bottom: none; }
+  .pose-item:hover { color: var(--light); }
+  .pose-item.active { color: var(--lighter); }
+  .pose-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; background: rgba(255,255,255,0.12); }
+  .pose-item.active .pose-dot { background: var(--red); }
+  .pose-item.done .pose-dot { background: var(--green); }
+  .pose-lv { margin-left: auto; font-family: 'Bebas Neue', sans-serif; font-size: 0.75rem; letter-spacing: 0.08em; color: var(--muted); }
+  .accuracy-ring { display: flex; align-items: center; justify-content: center; margin: 1rem 0; position: relative; }
+  .accuracy-ring svg { transform: rotate(-90deg); }
+  .ring-bg { stroke: rgba(255,255,255,0.06); }
+  .ring-fill { stroke: var(--gold); stroke-dasharray: 251.2; stroke-dashoffset: 251.2; stroke-linecap: round; transition: stroke-dashoffset 0.4s cubic-bezier(0.22,1,0.36,1); }
+  .ring-label { position: absolute; text-align: center; }
+  .ring-pct { font-family: 'Bebas Neue', sans-serif; font-size: 2rem; color: var(--lighter); letter-spacing: 0.04em; display: block; }
+  .ring-sub { font-size: 0.65rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+
+  /* Feedback card */
+  .feedback-lines { list-style: none; }
+  .feedback-lines li { font-size: 0.85rem; line-height: 1.6; color: var(--muted); padding: 0.25rem 0; border-bottom: 1px solid rgba(255,255,255,0.04); display: flex; align-items: center; gap: 0.5rem; }
+  .feedback-lines li:last-child { border-bottom: none; }
+  .feedback-lines li::before { content: '›'; color: var(--red); font-size: 1rem; }
+  .feedback-lines li.pass-line { color: var(--green); }
+  .feedback-lines li.pass-line::before { content: '✓'; color: var(--green); }
+
+  /* FEATURES */
+  .features { background: var(--ink); }
+  .features-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.5rem; margin-top: 4rem; }
+  .feat { display: flex; gap: 1.25rem; padding: 1.75rem; background: var(--ink2); border: 1px solid rgba(255,255,255,0.06); border-radius: 6px; }
+  .feat-icon { width: 40px; height: 40px; flex-shrink: 0; border-radius: 4px; background: var(--red-glow); border: 1px solid rgba(216,90,48,0.25); display: flex; align-items: center; justify-content: center; }
+  .feat-icon svg { width: 20px; height: 20px; }
+  .feat h4 { font-family: 'Bebas Neue', sans-serif; font-size: 1.2rem; letter-spacing: 0.04em; color: var(--lighter); margin-bottom: 0.4rem; }
+  .feat p { font-size: 0.875rem; line-height: 1.65; color: var(--muted); font-weight: 300; }
+
+  /* CTA + FOOTER */
+  .cta-section { background: var(--ink2); text-align: center; padding: 7rem 3rem; border-top: 1px solid rgba(216,90,48,0.15); }
+  .cta-section p { font-size: 1rem; color: var(--muted); max-width: 480px; margin: 0 auto 2.5rem; line-height: 1.75; font-weight: 300; }
+  footer { background: var(--ink); border-top: 1px solid rgba(255,255,255,0.05); padding: 2rem 3rem; display: flex; justify-content: space-between; align-items: center; }
+  .footer-logo { font-family: 'Bebas Neue', sans-serif; font-size: 1.2rem; letter-spacing: 0.08em; color: var(--muted); }
+  .footer-logo span { color: var(--red); }
+  footer p { font-size: 0.78rem; color: var(--muted); }
+
+  @media (max-width: 900px) {
+    nav { padding: 1rem 1.5rem; } .nav-links { display: none; }
+    .hero { grid-template-columns: 1fr; min-height: auto; padding: 6rem 1.5rem 3rem; }
+    .hero-visual { order: -1; }
+    .how-grid, .features-grid { grid-template-columns: 1fr; }
+    .levels-grid { grid-template-columns: 1fr 1fr; }
+    .training-layout { grid-template-columns: 1fr; }
+    .feed-row { grid-template-columns: 1fr; }
+    .anim-panel { display: none; }
+    section { padding: 4rem 1.5rem; }
+    .stats-strip { flex-wrap: wrap; } .stat { min-width: 50%; }
+    footer { flex-direction: column; gap: 0.75rem; text-align: center; }
+  }
+  @media (max-width: 600px) { .levels-grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="logo">Karate<span>.</span>Trainer</div>
+  <ul class="nav-links">
+    <li><a href="#how">How it works</a></li>
+    <li><a href="#levels">Levels</a></li>
+    <li><a href="#train">Train</a></li>
+  </ul>
+  <a href="#train" class="nav-cta">Start Training</a>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-text" style="animation:fadeup 0.8s ease both">
+    <div class="hero-eyebrow">AI-Powered Pose Coach</div>
+    <h1>Master the<br><em>Art of</em><br>Karate</h1>
+    <p class="hero-desc">Real-time pose detection using MediaPipe + angle-based scoring. Six training levels — kicks, punches, defense. Live skeleton comparison with instant feedback.</p>
+    <div class="hero-actions">
+      <a href="#train" class="btn-primary">Start Training</a>
+      <a href="#how" class="btn-ghost">See how it works</a>
+    </div>
+  </div>
+  <div class="hero-visual" style="animation:fadeup 0.8s 0.15s ease both;opacity:0;animation-fill-mode:forwards">
+    <div class="cam-frame">
+      <div class="cam-grid"></div>
+      <svg class="pose-svg" viewBox="0 0 520 390" fill="none">
+        <g opacity="0.9">
+          <circle cx="260" cy="70" r="22" fill="none" stroke="#D85A30" stroke-width="2"/>
+          <line x1="260" y1="92" x2="260" y2="160" stroke="#D85A30" stroke-width="2.5"/>
+          <line x1="260" y1="115" x2="195" y2="140" stroke="#D85A30" stroke-width="2.5"/>
+          <line x1="260" y1="115" x2="325" y2="140" stroke="#D85A30" stroke-width="2.5"/>
+          <line x1="195" y1="140" x2="175" y2="195" stroke="#D85A30" stroke-width="2.5"/>
+          <line x1="175" y1="195" x2="160" y2="250" stroke="#D85A30" stroke-width="2.5"/>
+          <line x1="325" y1="140" x2="355" y2="110" stroke="#D85A30" stroke-width="2.5"/>
+          <line x1="355" y1="110" x2="370" y2="78" stroke="#D85A30" stroke-width="2.5"/>
+          <line x1="235" y1="160" x2="285" y2="160" stroke="#D85A30" stroke-width="2.5"/>
+          <line x1="235" y1="160" x2="185" y2="200" stroke="#EF9F27" stroke-width="2.5"/>
+          <line x1="185" y1="200" x2="140" y2="185" stroke="#EF9F27" stroke-width="2.5"/>
+          <line x1="285" y1="160" x2="295" y2="245" stroke="#D85A30" stroke-width="2.5"/>
+          <line x1="295" y1="245" x2="300" y2="320" stroke="#D85A30" stroke-width="2.5"/>
+          <circle cx="260" cy="115" r="5" fill="#D85A30"/><circle cx="195" cy="140" r="5" fill="#D85A30"/>
+          <circle cx="325" cy="140" r="5" fill="#D85A30"/><circle cx="175" cy="195" r="5" fill="#D85A30"/>
+          <circle cx="185" cy="200" r="5" fill="#EF9F27"/><circle cx="140" cy="185" r="5" fill="#EF9F27"/>
+          <circle cx="285" cy="160" r="5" fill="#D85A30"/><circle cx="295" cy="245" r="5" fill="#D85A30"/>
+        </g>
+      </svg>
+      <div class="cam-overlay">
+        <div class="cam-top">
+          <div class="cam-badge">Live</div>
+          <div class="level-tag" id="hero-level-tag">Level 1 — Front Kick (R)</div>
+        </div>
+        <div>
+          <div class="score-bar-wrap">
+            <div class="score-label"><span class="score-name">Pose Match</span><span class="score-val" id="hero-score-val">—</span></div>
+            <div class="score-track"><div class="score-fill" id="hero-score-bar"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="stats-strip">
+  <div class="stat"><div class="stat-num">6</div><div class="stat-label">Training Levels</div></div>
+  <div class="stat"><div class="stat-num">33</div><div class="stat-label">Pose Landmarks</div></div>
+  <div class="stat"><div class="stat-num" id="stat-method">Angle</div><div class="stat-label">Scoring Method</div></div>
+  <div class="stat"><div class="stat-num">3</div><div class="stat-label">Move Categories</div></div>
+</div>
+
+<!-- HOW IT WORKS -->
+<section class="how" id="how">
+  <div class="section-eyebrow">Process</div>
+  <h2 class="section-title">How It Works</h2>
+  <div class="how-grid">
+    <div class="how-step">
+      <div class="how-num">01</div>
+      <div class="how-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#D85A30" stroke-width="1.75" stroke-linecap="round"><rect x="2" y="3" width="20" height="15" rx="2"/><circle cx="12" cy="10" r="3"/></svg></div>
+      <h3>Open Your Webcam</h3>
+      <p>Flask opens <code>cv2.VideoCapture(0)</code> server-side and runs MediaPipe at 0.6× zoom-out — same as the original Qt app — to give more body room in frame.</p>
+    </div>
+    <div class="how-step">
+      <div class="how-num">02</div>
+      <div class="how-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#D85A30" stroke-width="1.75" stroke-linecap="round"><path d="M12 2L4 6v6c0 5.5 3.8 10.7 8 12 4.2-1.3 8-6.5 8-12V6z"/><polyline points="9,12 11,14 15,10"/></svg></div>
+      <h3>Angle-Based Scoring</h3>
+      <p><code>similarity_score()</code> from <code>core/pose_matcher.py</code> computes 11 joint angles (elbows, hips, knees, torso) and scores each against the reference — same algorithm PoseCanvas uses.</p>
+    </div>
+    <div class="how-step">
+      <div class="how-num">03</div>
+      <div class="how-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#D85A30" stroke-width="1.75" stroke-linecap="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div>
+      <h3>Live Feedback</h3>
+      <p>Score is smoothed over 5 frames (deque). At ≥ threshold you pass; at ≥ 80% of threshold you get "Close"; below that — "Try again". The reference animation plays alongside.</p>
+    </div>
+  </div>
+</section>
+
+<!-- LEVELS -->
+<section class="levels" id="levels">
+  <div class="section-eyebrow">Curriculum</div>
+  <h2 class="section-title">Six Training Levels</h2>
+  <div class="levels-intro"><p>Loaded live from <code>data/levels.json</code>. Green badge = reference pose captured. Click any card to jump to that level in the training panel.</p></div>
+  <div class="levels-grid" id="levels-grid">
+    <div class="level-card" style="grid-column:1/-1;text-align:center;color:var(--muted);padding:2rem">Loading levels…</div>
+  </div>
+</section>
+
+<!-- TRAINING -->
+<section class="training" id="train">
+  <div class="section-eyebrow">Live Session</div>
+  <h2 class="section-title">Training Mode</h2>
+  <div class="training-layout">
+    <div>
+      <div class="conn-banner connecting" id="conn-banner">
+        <span class="conn-dot"></span><span id="conn-text">Connecting to backend…</span>
+      </div>
+      <div class="feed-row">
+        <!-- Live camera feed -->
+        <div class="webcam-area" id="webcam-area">
+          <div class="webcam-placeholder" id="cam-placeholder">
+            <div class="cam-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#D85A30" stroke-width="1.75" stroke-linecap="round"><rect x="2" y="3" width="20" height="15" rx="2"/><circle cx="12" cy="10" r="3"/></svg></div>
+            <h3>Camera Inactive</h3>
+            <p>Click "Start Camera" to begin. The server opens your webcam and streams the annotated feed here.</p>
+          </div>
+          <img id="live-feed" alt="live feed" />
+          <div class="pass-flash" id="pass-flash"></div>
+          <div class="feed-overlay" id="feed-overlay">
+            <div class="score-label" style="margin-bottom:0.4rem">
+              <span class="score-name" style="font-size:0.7rem;letter-spacing:0.08em;text-transform:uppercase;color:rgba(232,224,212,0.6)">Pose Match</span>
+              <span class="score-val" id="live-score-label">—</span>
+            </div>
+            <div class="score-track"><div class="score-fill" id="live-score-bar"></div></div>
+          </div>
+          <div class="cam-controls">
+            <button class="cam-btn active-btn" id="btn-start" onclick="startCamera()">Start Camera</button>
+            <button class="cam-btn" id="btn-stop" onclick="stopCamera()" style="display:none">Stop</button>
+            <button class="cam-btn" id="btn-capture" onclick="capturePose()" disabled>Capture Pose</button>
+          </div>
+        </div>
+
+        <!-- Reference animation panel — mirrors PoseCanvas animation_label -->
+        <div class="anim-panel" id="anim-panel">
+          <div class="anim-header">Reference Pose</div>
+          <div class="anim-canvas-wrap" style="min-height:180px">
+            <canvas id="anim-canvas" width="220" height="280"></canvas>
+          </div>
+          <div class="anim-footer" id="anim-footer">Select a level to see the reference</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sidebar -->
+    <div class="sidebar">
+      <div class="sidebar-card">
+        <h4>Select Level</h4>
+        <ul class="pose-list" id="pose-list"></ul>
+      </div>
+
+      <div class="sidebar-card">
+        <h4>Session Accuracy</h4>
+        <div class="accuracy-ring">
+          <svg width="120" height="120" viewBox="0 0 120 120">
+            <circle class="ring-bg" cx="60" cy="60" r="50" fill="none" stroke-width="8"/>
+            <circle class="ring-fill" cx="60" cy="60" r="50" fill="none" stroke-width="8" id="accuracy-ring"/>
+          </svg>
+          <div class="ring-label">
+            <span class="ring-pct" id="accuracy-pct">—</span>
+            <span class="ring-sub">Accuracy</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="sidebar-card" style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
+        <div>
+          <div style="font-size:0.68rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:0.4rem">Attempts</div>
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:1.8rem;color:var(--lighter)" id="stat-attempts">0</div>
+        </div>
+        <div>
+          <div style="font-size:0.68rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:0.4rem">Passed</div>
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:1.8rem;color:var(--green)" id="stat-passed">0</div>
+        </div>
+        <div>
+          <div style="font-size:0.68rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:0.4rem">Best Score</div>
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:1.8rem;color:var(--gold)" id="stat-best">—</div>
+        </div>
+        <div>
+          <div style="font-size:0.68rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:0.4rem">Level</div>
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:1.8rem;color:var(--lighter)" id="stat-level">1</div>
+        </div>
+      </div>
+
+      <!-- Coach Feedback — from app.py feedback logic -->
+      <div class="sidebar-card" id="feedback-card" style="display:none">
+        <h4>Coach Feedback</h4>
+        <ul class="feedback-lines" id="feedback-list"></ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section class="features" id="features">
+  <div class="section-eyebrow">Capabilities</div>
+  <h2 class="section-title">Built for Precision</h2>
+  <div class="features-grid">
+    <div class="feat">
+      <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#D85A30" stroke-width="1.75" stroke-linecap="round"><path d="M12 2L4 6v6c0 5.5 3.8 10.7 8 12 4.2-1.3 8-6.5 8-12V6z"/></svg></div>
+      <div><h4>Angle-Based Matching</h4><p><code>similarity_score()</code> in <code>core/pose_matcher.py</code> computes 11 key joint angles (elbows, shoulders, hips, knees) and scores each within a ±60° tolerance window. Weighted average → 0–100 score.</p></div>
+    </div>
+    <div class="feat">
+      <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#D85A30" stroke-width="1.75" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg></div>
+      <div><h4>5-Frame Score Smoothing</h4><p>Scores are averaged over a <code>deque(maxlen=5)</code> — identical to PoseCanvas — so jitter from individual frames doesn't cause false passes or failures.</p></div>
+    </div>
+    <div class="feat">
+      <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#D85A30" stroke-width="1.75" stroke-linecap="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="12" y1="17" x2="12" y2="21"/><line x1="8" y1="21" x2="16" y2="21"/></svg></div>
+      <div><h4>Reference Animation Panel</h4><p>Each level's <code>animation</code> field (3 captured skeleton frames) is drawn in the side panel — the same reference skeleton PoseCanvas showed next to the camera feed.</p></div>
+    </div>
+    <div class="feat">
+      <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#D85A30" stroke-width="1.75" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
+      <div><h4>WebSocket Live Stream</h4><p>Annotated OpenCV frames sent as base64 JPEG over WebSocket at ~20fps. The backend applies the same 0.6× zoom-out PoseCanvas uses before feeding to MediaPipe.</p></div>
+    </div>
+  </div>
+</section>
+
+<div class="cta-section">
+  <div class="section-eyebrow" style="justify-content:center">Ready?</div>
+  <h2 class="section-title">Get Into Stance</h2>
+  <p>Run <code>python app.py</code> from the <code>kart/</code> folder, then open <code>http://localhost:5000</code>.</p>
+  <a href="#train" class="btn-primary">Begin Training →</a>
+</div>
+
+<footer>
+  <div class="footer-logo">Karate<span>.</span>Trainer</div>
+  <p>MediaPipe · OpenCV · Flask · PoseMatcher angle scoring</p>
+  <p>Built by Rohit · Xavier University</p>
+</footer>
+
+<script>
+// ── State ────────────────────────────────────────────────────────────────────
+const BASE = "";
+let ws = null, wsRetryTimer = null;
+let backendOnline = false;
+let allLevels = [];
+let animFrames = [];    // animation frames for current level
+let animIdx = 0;        // current animation frame index
+let animTimer = null;
+
+// POSE_CONNECTIONS from pose_canvas.py
+const POSE_CONNECTIONS = [
+  [11,13],[13,15],[12,14],[14,16],
+  [11,12],[23,24],[11,23],[12,24],
+  [23,25],[25,27],[24,26],[26,28],
+  [27,31],[28,32]
+];
+
+// ── Boot ─────────────────────────────────────────────────────────────────────
+document.addEventListener("DOMContentLoaded", () => {
+  connectWS();
+  loadLevels();
+  pollSession();
+});
+
+// ── WebSocket ─────────────────────────────────────────────────────────────────
+function connectWS() {
+  setBanner("connecting", "Connecting to backend…");
+  const protocol = location.protocol === "https:" ? "wss" : "ws";
+  ws = new WebSocket(`${protocol}://${location.host}/ws/stream`);
+  ws.onopen  = () => { backendOnline = true; setBanner("connected", "Backend connected"); };
+  ws.onmessage = (e) => {
+    const data = JSON.parse(e.data);
+    if (data.type === "frame")  showFeed(data);
+    else if (data.type === "status" && !data.camera_active) hideFeed();
+  };
+  ws.onerror = () => { backendOnline = false; setBanner("disconnected", "Backend offline — run python app.py"); };
+  ws.onclose = () => {
+    backendOnline = false;
+    setBanner("disconnected", "Disconnected — retrying in 4s…");
+    hideFeed();
+    clearTimeout(wsRetryTimer);
+    wsRetryTimer = setTimeout(connectWS, 4000);
+  };
+}
+
+// ── Feed ─────────────────────────────────────────────────────────────────────
+function showFeed(data) {
+  const img = document.getElementById("live-feed");
+  img.src = "data:image/jpeg;base64," + data.image;
+  img.style.display = "block";
+  document.getElementById("cam-placeholder").style.display = "none";
+  document.getElementById("feed-overlay").classList.add("visible");
+  updateScoreUI(data.score, data.threshold);
+  showFeedback(data.feedback, data.passed);
+  if (data.level_name) {
+    const tag = document.querySelector(".level-tag");
+    if (tag) tag.textContent = "Level " + (data.level_idx + 1) + " — " + data.level_name;
+  }
+  if (data.passed) {
+    const f = document.getElementById("pass-flash");
+    f.classList.add("show");
+    setTimeout(() => f.classList.remove("show"), 600);
+  }
+}
+function hideFeed() {
+  document.getElementById("live-feed").style.display = "none";
+  document.getElementById("cam-placeholder").style.display = "block";
+  document.getElementById("feed-overlay").classList.remove("visible");
+}
+
+// ── Score UI ─────────────────────────────────────────────────────────────────
+function updateScoreUI(score, threshold) {
+  const s = Math.round(score);
+  document.getElementById("hero-score-val").textContent = s + "%";
+  document.getElementById("hero-score-bar").style.width = s + "%";
+  document.getElementById("live-score-label").textContent = s + "%";
+  document.getElementById("live-score-bar").style.width = s + "%";
+  const offset = 251.2 - (s / 100) * 251.2;
+  document.getElementById("accuracy-ring").style.strokeDashoffset = offset;
+  document.getElementById("accuracy-pct").textContent = s + "%";
+  // colour ring gold → green on pass
+  document.getElementById("accuracy-ring").style.stroke =
+    (threshold && s >= threshold) ? "var(--green)" : "var(--gold)";
+}
+
+// ── Feedback ─────────────────────────────────────────────────────────────────
+function showFeedback(lines, passed) {
+  if (!lines || !lines.length) return;
+  const card = document.getElementById("feedback-card");
+  const list = document.getElementById("feedback-list");
+  card.style.display = "block";
+  list.innerHTML = lines.map(l =>
+    `<li class="${passed ? 'pass-line' : ''}">${l}</li>`
+  ).join("");
+}
+
+// ── Camera controls ───────────────────────────────────────────────────────────
+async function startCamera() {
+  if (!backendOnline) { alert("Backend offline. Run: python app.py"); return; }
+  const res = await fetch(`${BASE}/api/camera/start`, { method: "POST" });
+  if (!res.ok) { alert("Could not start camera — check Python console."); return; }
+  document.getElementById("btn-start").style.display = "none";
+  document.getElementById("btn-stop").style.display = "inline-block";
+  document.getElementById("btn-capture").disabled = false;
+}
+async function stopCamera() {
+  await fetch(`${BASE}/api/camera/stop`, { method: "POST" });
+  hideFeed();
+  document.getElementById("btn-start").style.display = "inline-block";
+  document.getElementById("btn-stop").style.display = "none";
+  document.getElementById("btn-capture").disabled = true;
+}
+async function capturePose() {
+  const res = await fetch(`${BASE}/api/capture`, { method: "POST" });
+  if (!res.ok) return;
+  const data = await res.json();
+  document.getElementById("stat-attempts").textContent = data.attempts;
+  document.getElementById("stat-passed").textContent   = data.session_passed;
+  document.getElementById("stat-best").textContent     = Math.round(data.best_score) + "%";
+  showFeedback(data.feedback, data.passed);
+}
+
+// ── Level selection ───────────────────────────────────────────────────────────
+async function selectLevel(idx) {
+  document.querySelectorAll(".pose-item").forEach(el =>
+    el.classList.toggle("active", parseInt(el.dataset.idx) === idx));
+  document.getElementById("stat-level").textContent = idx + 1;
+  // Load animation for this level
+  if (allLevels[idx]) startAnimation(allLevels[idx].animation || []);
+  await fetch(`${BASE}/api/level`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ index: idx })
+  });
+}
+
+// ── Load levels ───────────────────────────────────────────────────────────────
+async function loadLevels() {
+  try {
+    const res = await fetch(`${BASE}/api/levels`);
+    allLevels = await res.json();
+  } catch {
+    allLevels = [
+      { id:1, name:"Front Kick (Right)",    type:"kick",    threshold:65, has_reference:false, animation:[] },
+      { id:2, name:"Side Kick (Left)",       type:"kick",    threshold:65, has_reference:false, animation:[] },
+      { id:3, name:"Straight Punch (Right)", type:"punch",   threshold:60, has_reference:false, animation:[] },
+      { id:4, name:"Hook Punch (Left)",      type:"punch",   threshold:60, has_reference:false, animation:[] },
+      { id:5, name:"Defense Stance A",       type:"defense", threshold:70, has_reference:false, animation:[] },
+      { id:6, name:"Defense Stance B",       type:"defense", threshold:70, has_reference:false, animation:[] },
+    ];
+  }
+  renderLevelCards(allLevels);
+  renderPoseList(allLevels);
+  if (allLevels[0]) startAnimation(allLevels[0].animation || []);
+}
+
+function renderLevelCards(levels) {
+  const tc = { kick:"type-kick", punch:"type-punch", defense:"type-defense" };
+  document.getElementById("levels-grid").innerHTML = levels.map((lv, i) => `
+    <div class="level-card" onclick="selectLevel(${i});document.getElementById('train').scrollIntoView({behavior:'smooth'})">
+      <div class="level-id">Level ${String(lv.id).padStart(2,"0")}</div>
+      <div class="level-name">${lv.name}</div>
+      <span class="level-type ${tc[lv.type]||''}">${lv.type}</span>
+      <span class="ref-badge ${lv.has_reference?'ref-ready':'ref-missing'}">${lv.has_reference?'Reference Ready':'No Reference'}</span>
+      <div class="level-threshold">
+        <span class="threshold-label">Threshold</span>
+        <div class="threshold-bar"><div class="threshold-fill" style="width:${lv.threshold}%"></div></div>
+        <span class="threshold-val">${lv.threshold}%</span>
+      </div>
+    </div>`).join("");
+}
+
+function renderPoseList(levels) {
+  document.getElementById("pose-list").innerHTML = levels.map((lv, i) => `
+    <li class="pose-item ${i===0?'active':''} ${lv.has_reference?'done':''}" data-idx="${i}" onclick="selectLevel(${i})">
+      <span class="pose-dot"></span>${lv.name}
+      <span class="pose-lv">LV ${lv.id}</span>
+    </li>`).join("");
+}
+
+// ── Reference Animation (mirrors PoseCanvas animation_label logic) ────────────
+function startAnimation(frames) {
+  clearInterval(animTimer);
+  animFrames = frames || [];
+  animIdx = 0;
+  const footer = document.getElementById("anim-footer");
+  if (!animFrames.length) {
+    footer.textContent = "No animation — run capture_reference_poses.py";
+    clearCanvas();
+    return;
+  }
+  footer.textContent = `Frame ${animIdx+1} / ${animFrames.length}`;
+  drawAnimFrame(animFrames[animIdx]);
+  // advance frame every 5 × 30ms = 150ms (mirrors PoseCanvas anim_timer % 5 at 30ms tick)
+  animTimer = setInterval(() => {
+    animIdx = (animIdx + 1) % animFrames.length;
+    footer.textContent = `Frame ${animIdx+1} / ${animFrames.length}`;
+    drawAnimFrame(animFrames[animIdx]);
+  }, 150);
+}
+
+function clearCanvas() {
+  const cv = document.getElementById("anim-canvas");
+  const ctx = cv.getContext("2d");
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, cv.width, cv.height);
+}
+
+function drawAnimFrame(landmarks) {
+  const cv = document.getElementById("anim-canvas");
+  const ctx = cv.getContext("2d");
+  const W = cv.width, H = cv.height;
+  ctx.fillStyle = "#f5f5f5";
+  ctx.fillRect(0, 0, W, H);
+  if (!landmarks || !landmarks.length) return;
+
+  // Find bounding box of landmark points so we can fit + centre them
+  const xs = landmarks.map(l => l.x), ys = landmarks.map(l => l.y);
+  const minX = Math.min(...xs), maxX = Math.max(...xs);
+  const minY = Math.min(...ys), maxY = Math.max(...ys);
+  const rangeX = maxX - minX || 1, rangeY = maxY - minY || 1;
+
+  // Fit with padding
+  const pad = 20;
+  const scaleX = (W - pad * 2) / rangeX;
+  const scaleY = (H - pad * 2) / rangeY;
+  const scale  = Math.min(scaleX, scaleY);
+  const offX   = pad + ((W - pad*2) - rangeX * scale) / 2;
+  const offY   = pad + ((H - pad*2) - rangeY * scale) / 2;
+
+  const pts = landmarks.map(lm => [
+    offX + (lm.x - minX) * scale,
+    offY + (lm.y - minY) * scale
+  ]);
+
+  // Draw connections
+  ctx.strokeStyle = "#D85A30";
+  ctx.lineWidth = 2.5;
+  ctx.lineCap = "round";
+  for (const [a, b] of POSE_CONNECTIONS) {
+    if (pts[a] && pts[b]) {
+      ctx.beginPath();
+      ctx.moveTo(pts[a][0], pts[a][1]);
+      ctx.lineTo(pts[b][0], pts[b][1]);
+      ctx.stroke();
+    }
+  }
+  // Draw joints
+  ctx.fillStyle = "#1D9E75";
+  for (const p of pts) {
+    ctx.beginPath();
+    ctx.arc(p[0], p[1], 5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+// ── Session polling ───────────────────────────────────────────────────────────
+async function pollSession() {
+  try {
+    const res  = await fetch(`${BASE}/api/session`);
+    const data = await res.json();
+    document.getElementById("stat-attempts").textContent = data.attempts;
+    document.getElementById("stat-passed").textContent   = data.passed;
+    document.getElementById("stat-best").textContent     = data.best_score ? Math.round(data.best_score)+"%" : "—";
+    document.getElementById("stat-level").textContent    = (data.current_level_idx ?? 0) + 1;
+  } catch {}
+  setTimeout(pollSession, 3000);
+}
+
+// ── Banner ────────────────────────────────────────────────────────────────────
+function setBanner(state, text) {
+  document.getElementById("conn-banner").className = "conn-banner " + state;
+  document.getElementById("conn-text").textContent = text;
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,47 @@
+[
+  {
+    "id": 1,
+    "name": "Front Kick 1",
+    "threshold": 65,
+    "reference_pose": [...]
+  },
+  {
+    "id": 2,
+    "name": "Front Kick 2",
+    "threshold": 65,
+    "reference_pose": [...]
+  },
+  {
+    "id": 3,
+    "name": "Front Kick 3",
+    "threshold": 65,
+    "reference_pose": [...]
+  },
+
+  {
+    "id": 4,
+    "name": "Straight Punch 1",
+    "threshold": 60,
+    "reference_pose": [...]
+  },
+  {
+    "id": 5,
+    "name": "Straight Punch 2",
+    "threshold": 60,
+    "reference_pose": [...]
+  },
+
+  {
+    "id": 6,
+    "name": "High Block 1",
+    "threshold": 60,
+    "reference_pose": [...]
+  },
+
+  {
+    "id": 7,
+    "name": "Horse Stance 1",
+    "threshold": 70,
+    "reference_pose": [...]
+  }
+]
